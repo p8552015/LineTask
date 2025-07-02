@@ -1,0 +1,45 @@
+{
+  "name": "line-focalboard-bot",
+  "version": "1.0.0",
+  "description": "LINE Bot 整合 Focalboard 任務管理系統，提供通過 LINE 聊天進行任務創建、查詢、更新和刪除功能",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "keywords": [
+    "line-bot",
+    "focalboard", 
+    "task-management",
+    "webhook",
+    "nodejs",
+    "express",
+    "project-management",
+    "collaboration"
+  ],
+  "author": "Your Name <your.email@example.com>",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@line/bot-sdk": "^10.0.0",
+    "axios": "^1.10.0",
+    "cors": "^2.8.5",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.0.1",
+    "express": "^4.21.0",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.10",
+    "jest": "^30.0.3",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.1",
+    "typescript": "^5.8.3"
+  }
+}
