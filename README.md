@@ -2,6 +2,15 @@
 
 一個整合 LINE Bot 與 Focalboard 的任務管理系統，讓您可以通過 LINE 聊天輕鬆管理任務。
 
+## 🎯 專案亮點
+
+- ✅ **完整的中文命令支援** - 支援自然語言任務創建
+- ✅ **多行任務格式** - 支援詳細的任務屬性設定
+- ✅ **Focalboard 完美整合** - 所有欄位正確映射和顯示
+- ✅ **SOLID 設計原則** - 高品質的程式碼架構
+- ✅ **完整的錯誤處理** - 詳細的日誌和故障排除
+- ✅ **豐富的文檔** - 包含完整的設定和使用指南
+
 ## 功能特色 ✨
 
 - 🚀 **通過 LINE 管理任務**: 使用簡單的命令創建、查詢、更新和刪除任務
@@ -36,31 +45,35 @@ LINE Official Account → Webhook → 中介服務 (Node.js) → Focalboard REST
 
 1. **克隆專案**
    ```bash
-   git clone <repository-url>
-   cd lineTask
+   git clone https://github.com/p8552015/LineTask.git
+   cd LineTask/lineCore
    ```
 
 2. **安裝依賴**
    ```bash
+   cd lineCore
    npm install
    ```
 
 3. **配置環境變數**
-   
-   複製 `.env` 檔案並填入您的設定：
+
+   複製 `.env.template` 為 `.env` 並填入您的設定：
+   ```bash
+   cp .env.template .env
+   ```
+
+   編輯 `.env` 文件：
    ```bash
    # LINE Bot Configuration
    LINE_CHANNEL_ACCESS_TOKEN=your_line_channel_access_token
    LINE_CHANNEL_SECRET=your_line_channel_secret
-   
-   # Google API Configuration  
-   GOOGLE_API_KEY=your_google_api_key
-   
+
    # Focalboard Configuration
    FOCALBOARD_API_URL=http://localhost:8080/api/v2
    FOCALBOARD_TOKEN=your_focalboard_token
    FOCALBOARD_TEAM_ID=0
-   
+   FOCALBOARD_DEFAULT_BOARD_ID=your_board_id
+
    # Server Configuration
    PORT=3000
    NODE_ENV=development
@@ -86,35 +99,47 @@ LINE Official Account → Webhook → 中介服務 (Node.js) → Focalboard REST
 
 ### LINE Bot 命令
 
-#### 創建任務
-```
-/add 任務標題 #標籤 @優先級 :負責人
+#### 創建任務 (支援多種格式)
 
-範例:
-/add 修正登入 bug #mobile @high :john
-/add 設計新功能 #frontend @medium
+**簡單格式:**
+```
+創建任務：任務標題
+```
+
+**完整格式:**
+```
+創建任務：任務標題
+優先級：高/中/低
+負責人：負責人姓名
+預估時間：8小時
+截止日期：7月18日
+狀態：進行中
+描述：詳細描述
+標籤：標籤1,標籤2,標籤3
+```
+
+**範例:**
+```
+創建任務：修復用戶登入頁面的驗證問題
+優先級：高
+負責人：張工程師
+預估時間：4小時
+截止日期：明天
+狀態：待辦
+描述：修復登入頁面的表單驗證邏輯
+標籤：bug,前端,緊急
 ```
 
 #### 查看任務
 ```
-/list                    # 顯示所有任務
-/list status:todo        # 顯示待辦任務  
-/list priority:high      # 顯示高優先級任務
-```
-
-#### 搜尋任務
-```
-/search 關鍵字
-
-範例:
-/search 登入
-/search bug
+查看任務                  # 顯示所有任務
+查看我的任務              # 顯示指派給我的任務
 ```
 
 #### 其他命令
 ```
-/help                    # 顯示幫助訊息
-/status                  # 顯示系統狀態
+幫助                     # 顯示幫助訊息
+狀態                     # 顯示系統狀態
 ```
 
 ### 任務屬性
@@ -262,8 +287,8 @@ docker logs <container-name>
 
 如有問題或建議，請透過以下方式聯絡：
 
-- GitHub Issues: [專案議題](https://github.com/yourusername/line-focalboard-bot/issues)
-- Email: your.email@example.com
+- GitHub Issues: [專案議題](https://github.com/p8552015/LineTask/issues)
+- GitHub Repository: [LineTask](https://github.com/p8552015/LineTask)
 
 ---
 
