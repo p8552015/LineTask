@@ -59,21 +59,21 @@ class App {
   setupMiddleware() {
     // 安全性中間件
     this.app.use(helmet());
-    
+
     // CORS 設定
     this.app.use(cors({
       origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
-      allowedHeaders: ['Content-Type', 'Authorization']
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Line-Signature']
     }));
-    
+
     // 日誌中間件
     this.app.use(morgan('combined'));
-    
-    // JSON 解析
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-    
+
+    // ⚠️ 重要：不要在這裡設定全域的 JSON 解析中間件
+    // LINE Webhook 端點需要原始的請求主體來進行簽名驗證
+    // JSON 解析將在各個路由中單獨設定
+
     console.log('中間件設定完成');
   }
 
@@ -89,7 +89,8 @@ class App {
       this.focalboardService = new FocalboardService(
         process.env.FOCALBOARD_API_URL,
         process.env.FOCALBOARD_TOKEN,
-        process.env.FOCALBOARD_TEAM_ID
+        process.env.FOCALBOARD_TEAM_ID,
+        process.env.FOCALBOARD_DEFAULT_BOARD_ID
       );
       
       console.log('正在初始化 Focalboard 服務...');
@@ -132,6 +133,11 @@ class App {
       throw new Error(`缺少必要的環境變數: ${missingVars.join(', ')}`);
     }
 
+    // 檢查是否有預設看板 ID 或 Token
+    if (!process.env.FOCALBOARD_DEFAULT_BOARD_ID && !process.env.FOCALBOARD_TOKEN) {
+      throw new Error('需要設置 FOCALBOARD_DEFAULT_BOARD_ID 或 FOCALBOARD_TOKEN 其中之一');
+    }
+
     console.log('環境變數驗證通過');
   }
 
@@ -153,27 +159,65 @@ class App {
       });
     });
 
-    // ✅ 恢復正式的 LINE Webhook 端點（有簽名驗證）
-    this.app.post('/Webhook', 
+    // ✅ 正式的 LINE Webhook 端點（有簽名驗證）
+    this.app.post('/Webhook',
       this.webhookController.getMiddleware(),
-      (req, res) => this.webhookController.handleWebhook(req, res)
+      async (req, res) => {
+        try {
+          console.log('🔔 正式 Webhook 端點收到請求');
+          await this.webhookController.handleWebhook(req, res);
+        } catch (error) {
+          console.error('❌ 正式端點處理錯誤:', error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              error: 'Internal Server Error',
+              message: error.message,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      }
     );
 
-    // 🔧 保留測試端點（無簽名驗證）
-    this.app.post('/webhook/test', express.json(), async (req, res) => {
-      try {
-        console.log('📨 測試端點收到 webhook（無簽名驗證）');
-        await this.webhookController.handleWebhook(req, res);
-      } catch (error) {
-        console.error('測試端點錯誤:', error);
-        res.status(500).json({ error: error.message });
+    // 🔧 測試端點（無簽名驗證）- 用於開發和調試
+    this.app.post('/webhook/test',
+      express.json({ limit: '10mb' }),
+      this.webhookController.getTestMiddleware(),
+      async (req, res) => {
+        try {
+          console.log('🧪 測試端點收到 webhook（無簽名驗證）');
+          await this.webhookController.handleWebhook(req, res);
+        } catch (error) {
+          console.error('❌ 測試端點錯誤:', error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              error: 'Internal Server Error',
+              message: error.message,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
       }
-    });
+    );
 
-    // LINE Webhook 端點 - 自訂路徑（保留向後兼容）
-    this.app.post('/webhook/line', 
+    // 🔄 備用 Webhook 端點（有簽名驗證）- 保留向後兼容
+    this.app.post('/webhook/line',
       this.webhookController.getMiddleware(),
-      (req, res) => this.webhookController.handleWebhook(req, res)
+      async (req, res) => {
+        try {
+          console.log('🔄 備用 Webhook 端點收到請求');
+          await this.webhookController.handleWebhook(req, res);
+        } catch (error) {
+          console.error('❌ 備用端點處理錯誤:', error);
+          if (!res.headersSent) {
+            res.status(500).json({
+              error: 'Internal Server Error',
+              message: error.message,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      }
     );
 
     // API 端點
@@ -203,6 +247,10 @@ class App {
    */
   setupApiRoutes() {
     const apiRouter = express.Router();
+
+    // 為 API 路由添加 JSON 解析中間件
+    apiRouter.use(express.json({ limit: '10mb' }));
+    apiRouter.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // 任務相關 API
     apiRouter.get('/tasks', async (req, res) => {
@@ -311,7 +359,149 @@ class App {
     });
 
     this.app.use('/api', apiRouter);
+
+    // 測試路由（僅在開發環境中啟用）
+    if (process.env.NODE_ENV !== 'production') {
+      this.setupTestRoutes();
+    }
+
     console.log('API 路由設定完成');
+  }
+
+  /**
+   * 設定測試路由（僅在開發環境中使用）
+   */
+  setupTestRoutes() {
+    const testRouter = express.Router();
+
+    // 為測試路由添加 JSON 解析中間件
+    testRouter.use(express.json({ limit: '10mb' }));
+    testRouter.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+    // 將訊息處理器存儲在 app.locals 中，供測試路由使用
+    this.app.locals.messageProcessor = this.messageProcessor;
+
+    // 測試訊息處理
+    testRouter.post('/message', async (req, res) => {
+      try {
+        const { message, userId = 'test-user-123' } = req.body;
+
+        if (!message) {
+          return res.status(400).json({
+            error: 'Missing message parameter'
+          });
+        }
+
+        console.log(`🧪 測試訊息處理: "${message}"`);
+
+        // 處理訊息
+        const result = await this.messageProcessor.processTextMessage(message, userId);
+
+        console.log('🧪 處理結果:', result);
+
+        res.json({
+          success: true,
+          input: {
+            message,
+            userId
+          },
+          result
+        });
+
+      } catch (error) {
+        console.error('🧪 測試處理失敗:', error);
+        res.status(500).json({
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
+
+    // 測試命令解析
+    testRouter.post('/parse', async (req, res) => {
+      try {
+        const { message } = req.body;
+
+        if (!message) {
+          return res.status(400).json({
+            error: 'Missing message parameter'
+          });
+        }
+
+        console.log(`🧪 測試命令解析: "${message}"`);
+
+        // 只解析命令，不執行
+        const command = this.messageProcessor.parseCommand(message);
+
+        console.log('🧪 解析結果:', command);
+
+        res.json({
+          success: true,
+          input: message,
+          command
+        });
+
+      } catch (error) {
+        console.error('🧪 解析失敗:', error);
+        res.status(500).json({
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    });
+
+    // 測試中文命令列表
+    testRouter.get('/chinese-commands', (req, res) => {
+      res.json({
+        success: true,
+        supportedCommands: {
+          create: [
+            '創建任務：任務標題',
+            '新增任務：任務標題',
+            '添加任務：任務標題',
+            '建立任務：任務標題',
+            '創建：任務標題',
+            '新增：任務標題',
+            '添加：任務標題'
+          ],
+          list: [
+            '查看任務',
+            '顯示任務',
+            '列出任務',
+            '列表任務',
+            '任務列表',
+            '任務清單'
+          ],
+          search: [
+            '搜尋：關鍵字',
+            '搜索：關鍵字',
+            '查找：關鍵字',
+            '尋找：關鍵字',
+            '搜尋 關鍵字',
+            '搜索 關鍵字'
+          ],
+          help: [
+            '幫助',
+            '說明',
+            '指令',
+            '命令',
+            'help',
+            '如何使用',
+            '怎麼用'
+          ]
+        },
+        examples: [
+          '創建任務：修復登入問題',
+          '新增任務：設計新功能',
+          '查看任務',
+          '搜尋：bug',
+          '幫助'
+        ]
+      });
+    });
+
+    this.app.use('/test', testRouter);
+    console.log('測試路由設定完成');
   }
 
   /**

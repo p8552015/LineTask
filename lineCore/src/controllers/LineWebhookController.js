@@ -13,25 +13,76 @@ class LineWebhookController {
   constructor(config, messageProcessor) {
     this.config = config;
     this.messageProcessor = messageProcessor;
-    
+
     // 🔍 調試：顯示實際使用的憑證
     console.log('🔐 LINE Bot 憑證調試:');
     console.log('   Channel Access Token (前20字):', config.channelAccessToken?.substring(0, 20) + '...');
     console.log('   Channel Secret:', config.channelSecret);
     console.log('   環境變數 Channel Secret:', process.env.LINE_CHANNEL_SECRET);
-    
+    console.log('   Channel Secret 長度:', config.channelSecret?.length);
+    console.log('   Channel Secret 類型:', typeof config.channelSecret);
+
+    // 驗證必要配置
+    if (!config.channelAccessToken) {
+      throw new Error('LINE_CHANNEL_ACCESS_TOKEN 未設定');
+    }
+    if (!config.channelSecret) {
+      throw new Error('LINE_CHANNEL_SECRET 未設定');
+    }
+
     // 初始化 LINE Bot 客戶端
     this.client = new Client({
       channelAccessToken: config.channelAccessToken,
       channelSecret: config.channelSecret
     });
 
-    // 設定 middleware
-    this.middleware = middleware({
-      channelSecret: config.channelSecret
+    // 設定 middleware 並包裝錯誤處理
+    this.middleware = this.createEnhancedMiddleware(config.channelSecret);
+
+    console.log('✅ LINE Webhook 控制器初始化完成');
+  }
+
+  /**
+   * 創建增強的中間件，包含詳細的錯誤處理
+   * @param {string} channelSecret - Channel Secret
+   * @returns {Function} 增強的中間件函數
+   */
+  createEnhancedMiddleware(channelSecret) {
+    const originalMiddleware = middleware({
+      channelSecret: channelSecret
     });
 
-    console.log('LINE Webhook 控制器初始化完成');
+    return (req, res, next) => {
+      console.log('🔍 中間件開始處理請求');
+      console.log('📋 原始請求標頭:', JSON.stringify({
+        'content-type': req.headers['content-type'],
+        'x-line-signature': req.headers['x-line-signature'] ? 'present' : 'missing',
+        'content-length': req.headers['content-length']
+      }, null, 2));
+
+      originalMiddleware(req, res, (error) => {
+        if (error) {
+          console.error('❌ 中間件錯誤:', error.name, error.message);
+          console.error('🔐 簽名驗證詳情:', {
+            hasSignature: !!req.headers['x-line-signature'],
+            channelSecretLength: channelSecret?.length,
+            bodyType: typeof req.body,
+            bodyLength: req.body ? JSON.stringify(req.body).length : 0
+          });
+
+          // 返回 400 錯誤給 LINE Platform
+          return res.status(400).json({
+            error: 'Bad Request',
+            message: error.message,
+            type: error.name,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        console.log('✅ 中間件驗證通過');
+        next();
+      });
+    };
   }
 
   /**
@@ -43,31 +94,85 @@ class LineWebhookController {
   }
 
   /**
+   * 創建測試用的中間件（無簽名驗證）
+   * @returns {Function} 測試中間件函數
+   */
+  getTestMiddleware() {
+    return (req, res, next) => {
+      console.log('🧪 使用測試中間件（跳過簽名驗證）');
+      console.log('📋 測試請求標頭:', JSON.stringify({
+        'content-type': req.headers['content-type'],
+        'content-length': req.headers['content-length']
+      }, null, 2));
+      next();
+    };
+  }
+
+  /**
    * 處理 webhook 事件
    * @param {Object} req - Express 請求物件
    * @param {Object} res - Express 回應物件
    */
   async handleWebhook(req, res) {
     try {
-      console.log('收到 LINE webhook 事件:', JSON.stringify(req.body, null, 2));
+      // 🔍 詳細的請求日誌
+      console.log('🔔 收到 LINE webhook 請求');
+      console.log('📋 請求標頭:', JSON.stringify({
+        'content-type': req.headers['content-type'],
+        'x-line-signature': req.headers['x-line-signature'],
+        'user-agent': req.headers['user-agent'],
+        'content-length': req.headers['content-length']
+      }, null, 2));
+
+      console.log('📦 請求主體:', JSON.stringify(req.body, null, 2));
+
+      // 驗證請求主體結構
+      if (!req.body) {
+        console.error('❌ 請求主體為空');
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Request body is empty'
+        });
+      }
 
       const events = req.body.events;
-      
+
       if (!events || events.length === 0) {
-        console.log('沒有事件需要處理');
+        console.log('ℹ️  沒有事件需要處理');
         return res.status(200).json({ message: 'No events to process' });
       }
+
+      console.log(`📨 處理 ${events.length} 個事件`);
 
       // 處理每個事件
       const promises = events.map(event => this.handleEvent(event));
       await Promise.all(promises);
 
+      console.log('✅ 所有事件處理完成');
       res.status(200).json({ message: 'Events processed successfully' });
+
     } catch (error) {
-      console.error('處理 webhook 時發生錯誤:', error);
-      res.status(500).json({ 
-        error: 'Internal server error',
-        message: error.message 
+      console.error('❌ 處理 webhook 時發生錯誤:', error);
+      console.error('📊 錯誤堆疊:', error.stack);
+
+      // 根據錯誤類型返回適當的狀態碼
+      let statusCode = 500;
+      let errorMessage = error.message;
+
+      if (error.name === 'SignatureValidationFailed') {
+        statusCode = 400;
+        errorMessage = 'Signature validation failed';
+        console.error('🔐 簽名驗證失敗 - 請檢查 Channel Secret 設定');
+      } else if (error.name === 'JSONParseError') {
+        statusCode = 400;
+        errorMessage = 'Invalid JSON in request body';
+        console.error('📝 JSON 解析錯誤 - 請檢查請求格式');
+      }
+
+      res.status(statusCode).json({
+        error: statusCode === 400 ? 'Bad Request' : 'Internal Server Error',
+        message: errorMessage,
+        timestamp: new Date().toISOString()
       });
     }
   }

@@ -1,0 +1,25 @@
+[
+  {
+    "id": "test-task-123456789",
+    "parentId": "bd4cehgd6bpy6xgmed7iqdosz6o",
+    "createdBy": "uidbp98a8ipde7mrdtaao69zc9y",
+    "modifiedBy": "uidbp98a8ipde7mrdtaao69zc9y",
+    "schema": 1,
+    "type": "card",
+    "title": "測試任務：通過 CURL 創建",
+    "fields": {
+      "contentOrder": [],
+      "icon": "🧪",
+      "isTemplate": false,
+      "properties": {
+        "a972dc7a-5f4c-45d2-8044-8c28c69717f1": "adeo5xuwne3qjue83fcozekz8ko",
+        "d3d682bf-e074-49d9-8df5-7320921c2d23": "87f59784-b859-4c24-8ebe-17c766e081dd",
+        "a8daz81s4xjgke1ww6cwik5w7ye": "8"
+      }
+    },
+    "createAt": 1751607600000,
+    "updateAt": 1751607600000,
+    "deleteAt": 0,
+    "boardId": "bd4cehgd6bpy6xgmed7iqdosz6o"
+  }
+]

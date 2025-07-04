@@ -13,7 +13,7 @@
   },
   "keywords": [
     "line-bot",
-    "focalboard", 
+    "focalboard",
     "task-management",
     "webhook",
     "nodejs",
@@ -33,6 +33,7 @@
     "express": "^4.21.0",
     "helmet": "^8.1.0",
     "morgan": "^1.10.0",
+    "playwright": "^1.53.2",
     "winston": "^3.17.0"
   },
   "devDependencies": {

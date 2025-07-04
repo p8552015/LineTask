@@ -15,9 +15,12 @@ class Task {
     this.priority = data.priority || 'medium';
     this.tags = data.tags || [];
     this.assignee = data.assignee || '';
+    this.estimatedHours = data.estimatedHours || null;
     this.dueDate = data.dueDate ? new Date(data.dueDate) : null;
     this.createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
     this.updatedAt = data.updatedAt ? new Date(data.updatedAt) : new Date();
+    this.createdBy = data.createdBy || '';
+    this.customFields = data.customFields || {};
     this.boardId = data.boardId || '';
     this.cardId = data.cardId || '';
   }
@@ -45,8 +48,20 @@ class Task {
       errors.push('無效的優先級');
     }
 
-    if (this.dueDate && this.dueDate < new Date()) {
-      errors.push('截止日期不能早於當前時間');
+    // 驗證預估時數
+    if (this.estimatedHours !== null && (this.estimatedHours < 0 || this.estimatedHours > 1000)) {
+      errors.push('預估時數必須在 0-1000 小時之間');
+    }
+
+    // 檢查截止日期是否早於今天（只比較日期，不比較時間）
+    if (this.dueDate) {
+      const today = new Date();
+      const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const dueDate = new Date(this.dueDate.getFullYear(), this.dueDate.getMonth(), this.dueDate.getDate());
+
+      if (dueDate < todayDate) {
+        errors.push('截止日期不能早於今天');
+      }
     }
 
     return {
@@ -88,9 +103,12 @@ class Task {
       priority: this.priority,
       tags: this.tags,
       assignee: this.assignee,
+      estimatedHours: this.estimatedHours,
       dueDate: this.dueDate ? this.dueDate.toISOString() : null,
       createdAt: this.createdAt.toISOString(),
       updatedAt: this.updatedAt.toISOString(),
+      createdBy: this.createdBy,
+      customFields: this.customFields,
       boardId: this.boardId,
       cardId: this.cardId
     };

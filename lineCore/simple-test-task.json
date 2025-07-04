@@ -1,0 +1,21 @@
+[
+  {
+    "id": "test123456789012345678901234567",
+    "parentId": "bd4cehgd6bpy6xgmed7iqdosz6o",
+    "createdBy": "uidbp98a8ipde7mrdtaao69zc9y",
+    "modifiedBy": "uidbp98a8ipde7mrdtaao69zc9y",
+    "schema": 1,
+    "type": "card",
+    "title": "簡單測試任務",
+    "fields": {
+      "contentOrder": [],
+      "icon": "🧪",
+      "isTemplate": false,
+      "properties": {}
+    },
+    "createAt": 1751610000000,
+    "updateAt": 1751610000000,
+    "deleteAt": 0,
+    "boardId": "bd4cehgd6bpy6xgmed7iqdosz6o"
+  }
+]
